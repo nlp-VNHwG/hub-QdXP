@@ -9,7 +9,7 @@ from collections import Counter
 import numpy as np
 
 # ===================== 1. 数据读取与预处理 =====================
-# 读取数据集（和你之前的读取方式一致）
+# 读取数据集
 dataset = pd.read_csv("dataset.csv", sep="\t", header=None, nrows=1000)
 texts = dataset[0].tolist()  # 文本列表
 labels = dataset[1].tolist()  # 标签列表
@@ -155,7 +155,7 @@ print(f"测试集准确率: {100 * correct / total:.2f}%")
 # ===================== 6. 单文本预测 =====================
 def predict(text):
     model.eval()
-    # 预处理（和训练数据一致）
+    # 预处理
     seg_text = " ".join(jieba.lcut(text))
     seq = text2seq(seg_text, vocab)
     seq = torch.tensor(seq, dtype=torch.long).unsqueeze(0).to(device)
