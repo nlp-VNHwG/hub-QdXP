@@ -8,11 +8,11 @@ import os
 dataset = pd.read_csv("dataset.csv", sep="\t", header=None, nrows=10000)
 print(dataset[1].value_counts())
 
-input_sententce = dataset[0].apply(lambda x: " ".join(jieba.lcut(x))) # sklearn对中文处理
+input_sententce = dataset[0].apply(lambda x: " ".join(jieba.lcut(x))) 
 
-vector = CountVectorizer() # 对文本进行提取特征 默认是使用标点符号分词， 不是模型
-vector.fit(input_sententce.values) # 统计词表
-input_feature = vector.transform(input_sententce.values) # 进行转换 100 * 词表大小
+vector = CountVectorizer()
+vector.fit(input_sententce.values)
+input_feature = vector.transform(input_sententce.values)
 
 model = KNeighborsClassifier()
 model.fit(input_feature, dataset[1].values)
@@ -63,3 +63,4 @@ if __name__ == "__main__":
 
     print("机器学习: ", text_calssify_using_ml("帮我导航到上海世博园"))
     print("大语言模型: ", text_calssify_using_llm("帮我导航到上海世博园"))
+
