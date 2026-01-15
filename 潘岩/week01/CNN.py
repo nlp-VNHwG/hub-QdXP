@@ -8,7 +8,7 @@ import jieba
 from collections import Counter
 import numpy as np
 
-# ===================== 1. 数据读取与预处理 =====================
+# ===================== 1. 数据读取与预处理 ======================
 # 读取数据集
 dataset = pd.read_csv("dataset.csv", sep="\t", header=None, nrows=1000)
 texts = dataset[0].tolist()  # 文本列表
