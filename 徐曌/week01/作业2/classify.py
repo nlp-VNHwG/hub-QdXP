@@ -1,73 +1,132 @@
 import pandas as pd
 import jieba
-from sklearn.feature_extraction.text import CountVectorizer # 词频统计
-from sklearn.neighbors import KNeighborsClassifier # KNN
-from openai import OpenAI
-from typing import Union
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
 
-from fastapi import FastAPI
+from openai import OpenAI
+from fastapi import FastAPI, Query
+import uvicorn
+
+from typing import Dict
+
+import webbrowser
 
 app = FastAPI()
 
+# ---------------- 数据加载 ----------------
 dataset = pd.read_csv("dataset.csv", sep="\t", header=None, nrows=10000)
 print(dataset[1].value_counts())
 
-input_sententce = dataset[0].apply(lambda x: " ".join(jieba.lcut(x))) # sklearn对中文处理
+# 中文分词
+input_sentence = dataset[0].apply(lambda x: " ".join(jieba.lcut(str(x))))
 
-vector = CountVectorizer() # 对文本进行提取特征 默认是使用标点符号分词， 不是模型
-vector.fit(input_sententce.values) # 统计词表
-input_feature = vector.transform(input_sententce.values) # 进行转换 100 * 词表大小
+# CountVectorizer 特征（适合 KNN）
+vector = CountVectorizer()
+vector.fit(input_sentence.values)
+input_feature = vector.transform(input_sentence.values)
 
-model = KNeighborsClassifier()
-model.fit(input_feature, dataset[1].values)
+# TF-IDF 特征（适合 NB、LR、SVM）
+tfidf_vector = TfidfVectorizer()
+tfidf_vector.fit(input_sentence.values)
+input_feature_tfidf = tfidf_vector.transform(input_sentence.values)
 
+# 1. KNN
+knn_model = KNeighborsClassifier()
+knn_model.fit(input_feature, dataset[1].values)
 
+# 2. 朴素贝叶斯
+nb_model = MultinomialNB()
+nb_model.fit(input_feature_tfidf, dataset[1].values)
+
+# 3. 逻辑回归
+lr_model = LogisticRegression(max_iter=1000)
+lr_model.fit(input_feature_tfidf, dataset[1].values)
+
+# 4. 支持向量机
+svm_model = LinearSVC()
+svm_model.fit(input_feature_tfidf, dataset[1].values)
+
+# ---------------- LLM 客户端 ----------------
 client = OpenAI(
-    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
-    # https://bailian.console.aliyun.com/?tab=model#/api-key
-    api_key="sk-d38c9151f0134a11b90be98d7385b147", # 账号绑定，用来计费的
-
-    # 大模型厂商的地址，阿里云
+    api_key="sk-xxx",  # token
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
 )
 
+# ---------------- 接口定义 ----------------
 @app.get("/text-cls/ml")
-def text_calssify_using_ml(text: str) -> str:
-    """
-    文本分类（机器学习），输入文本完成类别划分
-    """
+def text_classify_using_ml(
+    model: str = Query(None, description="选择模型: knn / nb / lr / svm，可为空"),
+    text: str = Query(..., description="待分类文本")
+) -> Dict:
     test_sentence = " ".join(jieba.lcut(text))
-    test_feature = vector.transform([test_sentence])
-    prediction = model.predict(test_feature)[0]
-    return f"机器学习预测类别: {prediction}"
+
+    results = {}
+
+    if model is None:
+        # 同时运行所有模型
+        results["knn"] = knn_model.predict(vector.transform([test_sentence]))[0]
+        results["nb"] = nb_model.predict(tfidf_vector.transform([test_sentence]))[0]
+        results["lr"] = lr_model.predict(tfidf_vector.transform([test_sentence]))[0]
+        results["svm"] = svm_model.predict(tfidf_vector.transform([test_sentence]))[0]
+        return {"method": "机器学习(全部)", "input": text, "predictions": results}
+
+    elif model == "knn":
+        prediction = knn_model.predict(vector.transform([test_sentence]))[0]
+        return {"method": "KNN", "input": text, "prediction": prediction}
+
+    elif model == "nb":
+        prediction = nb_model.predict(tfidf_vector.transform([test_sentence]))[0]
+        return {"method": "朴素贝叶斯", "input": text, "prediction": prediction}
+
+    elif model == "lr":
+        prediction = lr_model.predict(tfidf_vector.transform([test_sentence]))[0]
+        return {"method": "逻辑回归", "input": text, "prediction": prediction}
+
+    elif model == "svm":
+        prediction = svm_model.predict(tfidf_vector.transform([test_sentence]))[0]
+        return {"method": "SVM", "input": text, "prediction": prediction}
+
+    else:
+        return {"error": "模型类型错误，请选择 knn / nb / lr / svm"}
+
 
 @app.get("/text-cls/llm")
-def text_calssify_using_llm(text: str) -> str:
+def text_classify_using_llm(text: str) -> str:
     """
-    文本分类（大语言模型），输入文本完成类别划分
+    文本分类（大语言模型方法）
     """
     completion = client.chat.completions.create(
-        model="qwen-flash",  # 模型的代号
-
+        model="qwen-flash",
         messages=[
             {"role": "user", "content": f"""帮我进行文本分类：{text}
 
-            输出的类别只能从如下中进行选择， 除了类别之外下列的类别，请给出最合适的类别。
-            FilmTele-Play            
-            Video-Play               
-            Music-Play              
-            Radio-Listen           
-            Alarm-Update        
-            Travel-Query        
-            HomeAppliance-Control  
-            Weather-Query          
-            Calendar-Query      
-            TVProgram-Play      
-            Audio-Play       
-            Other             
-            """},  # 用户的提问
+                   输出的类别只能从如下中进行选择， 除了类别之外下列的类别，请给出最合适的类别。
+                   FilmTele-Play            
+                   Video-Play               
+                   Music-Play              
+                   Radio-Listen           
+                   Alarm-Update        
+                   Travel-Query        
+                   HomeAppliance-Control  
+                   Weather-Query          
+                   Calendar-Query      
+                   TVProgram-Play      
+                   Audio-Play       
+                   Other             
+                   """},  # 用户的提问
         ]
     )
-
     prediction = completion.choices[0].message.content
     return f"大模型预测类别: {prediction}"
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "classify:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
+
