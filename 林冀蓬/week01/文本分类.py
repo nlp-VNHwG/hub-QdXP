@@ -1,68 +1,49 @@
-import pandas as pd
 import jieba
-from openai import OpenAI
+import pandas as pd
+from sklearn.model_selection import cross_val_predict
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import SVC
-import pkg_resources
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import classification_report, accuracy_score
 
-datasets = pd.read_csv('dataset.csv', sep='\t', header=None, nrows=10000)
-# print(datasets[1].value_counts())
+# --- 1. 数据加载与预处理 ---
+print("--- 1. 正在加载和预处理数据 ---")
+dataset = pd.read_csv("../Week01/dataset.csv", sep="\t", header=None, nrows=100)
 
-input_sentence = datasets[0].apply(lambda x: " ".join(jieba.lcut(x)))
+print("数据集前5行预览：")
+print(dataset.head(5))
 
+# 使用jieba进行中文分词，并用空格分隔
+# sklearn的CountVectorizer默认使用空格作为分隔符
+input_sentences = dataset[0].apply(lambda x: " ".join(jieba.lcut(x)))
+labels = dataset[1]
+
+# --- 2. 特征提取 (词袋模型) ---
+print("\n--- 2. 正在进行特征提取 ---")
 vectorizer = CountVectorizer()
-vectorizer.fit(input_sentence.values)
-input_feature = vectorizer.transform(input_sentence.values)
+input_features = vectorizer.fit_transform(input_sentences.values)
+print(f"特征矩阵的形状： {input_features.shape}")
 
-knnmodel = KNeighborsClassifier()
-knnmodel.fit(input_feature, datasets[1].values)
+# --- 3. 模型训练与评估 ---
+# 不再需要手动划分训练集和测试集，cross_val_predict 会处理交叉验证的划分
 
-svmmodel = SVC()
-svmmodel.fit(input_feature, datasets[1].values)
+# 定义四种不同的模型
+models = {
+    'KNN (K-Nearest Neighbors)': KNeighborsClassifier(),
+    'Naive Bayes (MultinomialNB)': MultinomialNB(),
+    'SVM (Support Vector Classifier)': SVC(kernel='linear'),
+    'Decision Tree': DecisionTreeClassifier()
+}
 
+for name, model in models.items():
+    print(f"\n--- 正在评估模型: {name} ---")
 
-client = OpenAI(
-    api_key='sk-f1de23cc9d5e4d2693700c30aeee9765',
-    base_url='https://dashscope.aliyuncs.com/compatible-mode/v1'
-)
+    # 使用 cross_val_predict 进行5折交叉验证，获取每个样本的预测结果
+    y_pred = cross_val_predict(model, input_features, labels, cv=5)
 
-def text_classify_using_ml_knn(text: str) -> str:
-    test_sentence = " ".join(jieba.lcut(text))
-    test_feature = vectorizer.transform([test_sentence])
-    return knnmodel.predict(test_feature)[0]
-
-def text_classify_using_ml_svm(text: str) -> str:
-    test_sentence = " ".join(jieba.lcut(text))
-    test_feature = vectorizer.transform([test_sentence])
-    return svmmodel.predict(test_feature)[0]
-
-def text_classify_using_llm(text: str) -> str:
-    completion = client.chat.completions.create(
-        model="qwen-flash",
-
-        messages=[
-            {"role": "user", "content": f"""帮我进行文本分类：{text}
-
-    输出的类别只能从如下中进行选择， 除了类别之外下列的类别，请给出最合适的类别。
-    FilmTele-Play            
-    Video-Play               
-    Music-Play              
-    Radio-Listen           
-    Alarm-Update        
-    Travel-Query        
-    HomeAppliance-Control  
-    Weather-Query          
-    Calendar-Query      
-    TVProgram-Play      
-    Audio-Play       
-    Other             
-    """},  # 用户的提问
-        ]
-    )
-    return completion.choices[0].message.content
-
-if __name__ ==  '__main__':
-    print("大语言模型：", text_classify_using_llm("帮我查询今天的天气"))
-    print("机器学习-knn：", text_classify_using_ml_knn("这首歌真好听"))
-    print("机器学习-svm: ", text_classify_using_ml_svm("今天是2026年1月22号"))
+    # 基于交叉验证的预测结果，计算并打印准确率和分类报告
+    print(f"平均准确率: {accuracy_score(labels, y_pred):.4f}")
+    report = classification_report(labels, y_pred, zero_division=0)
+    print(report)
