@@ -1,0 +1,106 @@
+# 1. 导入必备库
+import torch
+import torch.nn as nn  # 神经网络核心模块
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 2. 生成sin函数的模拟数据（带噪声）
+# 生成x：0到2π之间均匀取200个点，覆盖sin一个完整周期
+X_numpy = np.linspace(0, 2 * np.pi, 200).reshape(-1, 1)  # 形状(200,1)，200个样本，1个特征
+# 生成y：sin(x) + 少量噪声（模拟真实场景）
+y_numpy = np.sin(X_numpy) + 0.1 * np.random.randn(*X_numpy.shape)
+
+# 转换为PyTorch张量（深度学习计算用）
+X = torch.from_numpy(X_numpy).float()
+y = torch.from_numpy(y_numpy).float()
+
+print("sin数据生成完成，数据形状：X={}, y={}".format(X.shape, y.shape))
+print("---" * 10)
+
+
+# 3. 定义多层神经网络模型（核心！）
+class SinFittingNet(nn.Module):
+    def __init__(self):
+        super(SinFittingNet, self).__init__()
+        # 定义多层全连接层：输入层→隐藏层1→隐藏层2→输出层
+        self.fc1 = nn.Linear(1, 32)  # 输入维度1（x是1维），隐藏层1有32个神经元
+        self.fc2 = nn.Linear(32, 64)  # 隐藏层1→隐藏层2，64个神经元
+        self.fc3 = nn.Linear(64, 1)  # 隐藏层2→输出层，输出维度1（预测y）
+        self.relu = nn.ReLU()  # 非线性激活函数（让网络能拟合非线性的sin）
+
+    # 前向传播：定义数据如何通过网络计算预测值
+    def forward(self, x):
+        out = self.fc1(x)  # 输入→隐藏层1
+        out = self.relu(out)  # 激活函数，引入非线性
+        out = self.fc2(out)  # 隐藏层1→隐藏层2
+        out = self.relu(out)  # 激活函数
+        out = self.fc3(out)  # 隐藏层2→输出层
+        return out
+
+
+# 初始化模型
+model = SinFittingNet()
+print("多层神经网络结构：")
+print(model)  # 打印模型结构，方便查看
+print("---" * 10)
+
+# 4. 定义损失函数和优化器
+loss_fn = nn.MSELoss()  # 回归任务用均方误差损失
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)  # Adam优化器（比SGD更适合神经网络）
+
+# 5. 训练模型
+num_epochs = 5000  # 训练轮数（多层网络收敛更快）
+print_step = 500  # 每500轮打印一次损失
+
+# 记录损失变化（可选，用于可视化训练过程）
+loss_history = []
+
+for epoch in range(num_epochs):
+    # 前向传播：用模型预测y
+    y_pred = model(X)
+
+    # 计算损失
+    loss = loss_fn(y_pred, y)
+    loss_history.append(loss.item())
+
+    # 反向传播+更新参数
+    optimizer.zero_grad()  # 清空梯度（避免累加）
+    loss.backward()  # 反向传播计算梯度
+    optimizer.step()  # 更新网络参数
+
+    # 打印训练进度
+    if (epoch + 1) % print_step == 0:
+        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.6f}")
+
+print("\n训练完成！")
+print("---" * 10)
+
+# 6. 用训练好的模型做预测（关闭梯度计算，节省资源）
+with torch.no_grad():
+    y_predicted = model(X).numpy()  # 预测值转numpy，方便绘图
+
+# 7. 可视化结果（核心作业要求）
+plt.figure(figsize=(12, 8))
+
+# 子图1：sin曲线拟合效果对比
+plt.subplot(2, 1, 1)
+plt.scatter(X_numpy, y_numpy, label='Raw sin data (with noise)', color='blue', alpha=0.6, s=10)
+plt.plot(X_numpy, y_predicted, label='Fitted curve (Multi-layer Net)', color='red', linewidth=2)
+plt.plot(X_numpy, np.sin(X_numpy), label='True sin(x)', color='green', linestyle='--', linewidth=2)
+plt.xlabel('X (0 ~ 2π)')
+plt.ylabel('y')
+plt.title('Multi-layer Neural Network Fit sin(x)')
+plt.legend()
+plt.grid(True)
+
+# 子图2：训练损失变化（验证模型是否收敛）
+plt.subplot(2, 1, 2)
+plt.plot(loss_history, color='orange', linewidth=2)
+plt.xlabel('Epoch')
+plt.ylabel('MSE Loss')
+plt.title('Training Loss Trend')
+plt.grid(True)
+
+plt.tight_layout()  # 调整子图间距
+plt.show()
+
