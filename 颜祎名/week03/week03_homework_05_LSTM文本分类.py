@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
+import matplotlib.pyplot as plt
 
 dataset = pd.read_csv("../Week01/dataset.csv", sep="\t", header=None)
 texts = dataset[0].tolist()
@@ -231,20 +232,20 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 num_epochs = 4
-for epoch in range(num_epochs):
-    model.train()
-    running_loss = 0.0
-    for idx, (inputs, labels) in enumerate(dataloader):
-        optimizer.zero_grad()
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-        if idx % 50 == 0:
-            print(f"Batch 个数 {idx}, 当前Batch Loss: {loss.item()}")
-
-    print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(dataloader):.4f}")
+# for epoch in range(num_epochs):
+#     model.train()
+#     running_loss = 0.0
+#     for idx, (inputs, labels) in enumerate(dataloader):
+#         optimizer.zero_grad()
+#         outputs = model(inputs)
+#         loss = criterion(outputs, labels)
+#         loss.backward()
+#         optimizer.step()
+#         running_loss += loss.item()
+#         if idx % 50 == 0:
+#             print(f"Batch 个数 {idx}, 当前Batch Loss: {loss.item()}")
+#
+#     print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(dataloader):.4f}")
 
 def classify_text_lstm(text, model, char_to_index, max_len, index_to_label):
     indices = [char_to_index.get(char, 0) for char in text[:max_len]]
@@ -270,3 +271,31 @@ print(f"输入 '{new_text}' 预测为: '{predicted_class}'")
 new_text_2 = "查询明天北京的天气"
 predicted_class_2 = classify_text_lstm(new_text_2, model, char_to_index, max_len, index_to_label)
 print(f"输入 '{new_text_2}' 预测为: '{predicted_class_2}'")
+
+# 对RNN、LSTM、GRU三者的Loss数据进行绘图对比
+rnn_losses = [2.3731,2.3616,2.3592,2.3582]
+lstm_losses = [2.3616,1.9661,1.3008,0.8120]
+gru_losses = [1.4039,0.4648,0.2993,0.2131]
+
+def plot_loss_comparison(rnn_loss, lstm_loss, gru_loss):
+    epochs = range(1, len(rnn_loss) + 1)
+
+    plt.figure(figsize=(10, 6))
+
+    # 绘制三条曲线
+    plt.plot(epochs, rnn_loss, 'r-o', label='Vanilla RNN')
+    plt.plot(epochs, lstm_loss, 'b-s', label='LSTM')
+    plt.plot(epochs, gru_loss, 'g-^', label='GRU')
+
+    # 修饰图形
+    plt.title('Training Loss Comparison: RNN vs LSTM vs GRU', fontsize=14)
+    plt.xlabel('Epochs', fontsize=12)
+    plt.ylabel('Average Loss', fontsize=12)
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+
+    # 保存并显示
+    plt.savefig('loss_comparison.png')
+    plt.show()
+
+plot_loss_comparison(rnn_losses, lstm_losses, gru_losses)
