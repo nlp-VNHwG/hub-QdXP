@@ -243,7 +243,7 @@ def main():
     主函数：组织整个训练和评估流程
     """
     # 训练轮数
-    epochs = 20
+    epochs = 10
     # 词汇表大小
     input_size = len(text_to_index)
     # 词嵌入维度
