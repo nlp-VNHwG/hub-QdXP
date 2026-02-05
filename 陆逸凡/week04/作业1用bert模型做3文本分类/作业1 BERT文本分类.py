@@ -15,6 +15,14 @@ import logging
 import sys
 import os
 import time
+
+'''
+作业：
+重新找一个公开数据集， 或 直接标注一个文本分类数据集（推荐3个以上的类别个数），
+复现加载bert base 模型在新数据集上的微调过程。最终需要输入一个新的样本进行测试，
+验证分类效果是否准确。
+'''
+
 # 基本配置 - 输出到文件和控制台
 log_file_path = os.path.join(os.path.dirname(__file__), 'app.log')
 logging.basicConfig(
@@ -28,8 +36,6 @@ logging.basicConfig(
 
 # 使用日志
 logger = logging.getLogger(__name__)
-
-
 
 # 加载和预处理数据
 # 当前文件所在目录的上级目录
