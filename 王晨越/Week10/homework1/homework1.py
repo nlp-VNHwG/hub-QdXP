@@ -16,7 +16,6 @@ def main() -> None:
 
     image = Image.open(IMAGE_PATH).convert("RGB")
 
-    # 你可以自由增删候选类别（zero-shot 就是“文本类别”由你定义）
     candidate_texts = [
         "一只小狗",
         "一只猫",
