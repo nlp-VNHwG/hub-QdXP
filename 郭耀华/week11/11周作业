@@ -1,0 +1,75 @@
+import os 
+os.environ["OPENAI_API_KEY"] = "sk-a0244e7478ac4c7daa86a2ee719fb984"
+os.environ["OPENAI_BASE_URL"] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+# 导入所需的异步IO库
+import asyncio
+# 从agents模块中导入Agent, Runner, trace类和函数
+from agents import Agent, Runner, trace
+# 从agents模块中导入set_default_openai_api和set_tracing_disabled函数
+from agents import set_default_openai_api, set_tracing_disabled
+from pydantic import BaseModel
+
+# 设置默认的OpenAI API为chat_completions
+set_default_openai_api("chat_completions")
+# 禁用跟踪功能
+set_tracing_disabled(True)
+
+
+
+class SentimentOutput(BaseModel):
+    sentiment: str  # 正面/负面
+    confidence: float
+    advice: str
+
+# main_agent = Agent(
+#     name="Receive input of user, select agent for response",
+#     model="qwen-max",
+#     instructions="你是一个主agent，接受用户输入，选择一个agent进行回答用户的输入",
+#     output_type=OutlineCheckerOutput,
+# )
+
+mental_classify_agent = Agent(
+    name="outline_checker_agent",
+    model = "qwen-max",
+    handoff_description="处理情感分析、情绪判断、正面/负面分类等任务",
+    instructions="对输入文本做情感分类，判断是正面还是负面情绪。必须返回json格式，包含且仅包含以下三个字段：sentiment(字符串，正面/负面)、confidence(浮点数，0到1之间)、advice(字符串，给用户的具体建议)。三个字段缺一不可。",
+    output_type=SentimentOutput,
+)
+
+entity_recognition_agent=Agent(
+    name="entity_recognition_agent",
+    model='qwen-max',
+    handoff_description="处理人名、地名、机构名等命名实体的识别和提取",
+    instructions="从输入文本中识别出人名、地名、机构名等实体，json格式输出",
+    output_type=str,
+)
+
+
+
+
+triage_agent = Agent(
+    name="Triage Agent",
+    model="qwen-max",
+    instructions="判断用户输入，应该将请求派给outline_checker_agent还是entity_recognition_agent",
+    handoffs=[mental_classify_agent, entity_recognition_agent],
+
+)
+
+async def main():
+    
+
+    input_prompt=input("请输入文本: ")
+    result= await Runner.run(
+        triage_agent,
+        input_prompt,
+    )
+
+    print("用户输入：",input_prompt)
+
+    print(result.final_output)
+
+if __name__ == "__main__":
+    # 使用asyncio.run启动异步主函数
+    # 这是Python中运行异步代码的标准方式
+    asyncio.run(main())
